@@ -3,7 +3,7 @@ import connectDB from "./src/configs/db.js"; //connects to database
 import routes from "./src/routes/index.js"; //connects to routes
 import dotenv from "dotenv";
 const app = express();
-
+dotenv.config()
 
 const port = process.env.PORT || 8000;
 //basic middlewares
