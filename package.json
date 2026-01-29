@@ -1,0 +1,12 @@
+{
+  "name": "fixiez-backend",
+  "version": "1.0.0",
+  "description": "Backend For Fixiez",
+  "license": "ISC",
+  "author": "Dipayan Das",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "start"
+  }
+}
