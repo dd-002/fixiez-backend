@@ -41,7 +41,7 @@ const registerUser = async (req, res) => {
       }
     }
 
- 
+
     const newUser = new User({
       firstname,
       lastname,
@@ -102,41 +102,41 @@ const loginUser = async (req, res) => {
 
     // 2. Compare password
     const isMatch = await bcrypt.compare(password, user.password);
-  
+
     if (!isMatch) {
       return res
         .status(401)
         .json({ message: "Invalid credentials", frontendCode: 2 });
     }
-   
+
     //To prevent session fixation attack
     req.session.regenerate((err) => {
       if (err) {
         return res.status(500).json({ message: "Could not initialize session" });
       }
 
-    req.session.userId = user._id;
-    req.session.role = user.role; 
+      req.session.userId = user._id;
+      req.session.role = user.role;
 
-    // Optional: Force save to ensure session is stored before sending response
-    req.session.save((err) => {
-      if (err) {
-        return res.status(500).json({
-          message : "Some Error Occured"
-        })
-      };
-      
-      res.status(200).json({
-        message: "Login successful",
-        user: {
-          firstname: user.firstname,
-          lastname: user.lastname,
-          email: user.email,
-          role: user.role
-        }
+      // Optional: Force save to ensure session is stored before sending response
+      req.session.save((err) => {
+        if (err) {
+          return res.status(500).json({
+            message: "Some Error Occured"
+          })
+        };
+
+        res.status(200).json({
+          message: "Login successful",
+          user: {
+            firstname: user.firstname,
+            lastname: user.lastname,
+            email: user.email,
+            role: user.role
+          }
+        });
       });
     });
-  });
 
   } catch (err) {
     return res.status(500).json({
@@ -241,9 +241,17 @@ const changePassword = async (req, res) => {
       existingUser.password = password;
       existingUser.passwordVersion = (existingUser.passwordVersion || 0) + 1;
       await existingUser.save();
-      return res.status(200).json({ message: "Success" });
+
+      res.clearCookie('connect.sid', {
+        path: '/',
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: 'lax'
+      });
+
+      return res.status(200).json({ message: "Password Reset Successful" });
     } else {
-      return res.status(401).json({ message: "Token invalid" });
+      return res.status(401).json({ message: "Password Reset Token invalid" });
     }
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -284,7 +292,7 @@ const logoutUser = async (req, res) => {
     // 3. Clear the cookie from the browser
     // The name must match the 'name' in your session config (default is 'connect.sid')
     res.clearCookie('connect.sid', {
-      path: '/', 
+      path: '/',
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: 'lax'
