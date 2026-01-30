@@ -1,6 +1,7 @@
 //a model for all the users
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
+import { type } from "node:os";
 
 
 /**
@@ -23,9 +24,12 @@ const userSchema = new mongoose.Schema(
     isSuspended: { type: Boolean, required: true, default: false }, //manually disabled by admin
     balance: { type: Number, required: true, default: 0 },
     wallet: { type: mongoose.Schema.ObjectId, ref: "Wallet" },
+    passwordVersion : { type: mongoose.Schema.ObjectId, ref: "Wallet" },
+    signUp : {type:String, default:"normal"}  //normal gmail
   },
   { timestamps: true },
 );
+
 
 // Hash the password before saving to the database
 userSchema.pre("save", async function (next) {
