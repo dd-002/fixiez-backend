@@ -10,12 +10,15 @@ const tokenSchema = new Schema({
   token: {
     type: String,
     required: true,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+    expires: 300 // Deletes document 1 hour after 'createdAt'
   }
-},{
-  timestamps:true
-  });
+});
 
-const Token = model("VerificationTokens", tokenSchema, "verificationTokenCollection");
+const VerifyEmailToken = model("VerificationTokens", tokenSchema, "verificationTokenCollection");
 
-export default Token;
+export default VerifyEmailToken;
 
