@@ -1,9 +1,7 @@
 import User from "../models/user.js";
-import RefreshToken from "../models/userRefreshTokens.js";
 import Token from "../models/verificationEmailTokenSchema.js";
 import Token2 from "../models/passwordResetSchema.js";
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
 import sendVerificationLink from "../utils/sendVerificationLink.js";
 import generateVerificationLink from "../utils/generateVerificationLink.js";
 import sendPasswordResetLink from "../utils/sendPasswordResetLink.js";
@@ -110,39 +108,36 @@ const loginUser = async (req, res) => {
         .status(401)
         .json({ message: "Invalid credentials", frontendCode: 2 });
     }
-    const accessToken = jwt.sign(
-      { userID: user._id },
-      process.env.ACCESS_TOKEN_SECRET,
-      { expiresIn: "10w" },
-    );
-    const refreshToken = jwt.sign(
-      { userID: user._id },
-      process.env.REFRESH_TOKEN_SECRET,
-      { expiresIn: "10w" },
-    );
-    const newRefreshToken = new RefreshToken({
-      userID: user._id,
-      refreshToken,
-    });
-    // Save the user to the database
-    await newRefreshToken.save();
-    //Refresh Token sent as HttpOnly cookie
-    res.cookie("refresh_token", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax", // adjust based on frontend/backend domains
-      maxAge: 10 * 7 * 24 * 60 * 60 * 1000, // 10 weeks
-    });
-    //Access Token Sent in body
+   
+    //To prevent session fixation attack
+    req.session.regenerate((err) => {
+      if (err) {
+        return res.status(500).json({ message: "Could not initialize session" });
+      }
 
-    res.status(200).json({
-      accessToken: accessToken,
-      firstname: user.firstname,
-      lastname: user.lastname,
-      email: user.email,
-      role: user.role,
-      phone: user.phone,
+    req.session.userId = user._id;
+    req.session.role = user.role; 
+
+    // Optional: Force save to ensure session is stored before sending response
+    req.session.save((err) => {
+      if (err) {
+        return res.status(500).json({
+          message : "Some Error Occured"
+        })
+      };
+      
+      res.status(200).json({
+        message: "Login successful",
+        user: {
+          firstname: user.firstname,
+          lastname: user.lastname,
+          email: user.email,
+          role: user.role
+        }
+      });
     });
+  });
+
   } catch (err) {
     return res.status(500).json({
       message: err.message,
@@ -244,6 +239,7 @@ const changePassword = async (req, res) => {
     if (token) {
       await Token2.deleteMany({ userId: existingUser._id });
       existingUser.password = password;
+      existingUser.passwordVersion = (existingUser.passwordVersion || 0) + 1;
       await existingUser.save();
       return res.status(200).json({ message: "Success" });
     } else {
@@ -254,81 +250,14 @@ const changePassword = async (req, res) => {
   }
 };
 
-/**
- * Verifies the access token and sends imp user info to frontend
- * Checks for if account is suspended or disabled
- * Mainly used by contexts in front end to set user info
- */
-const verifyAccessToken = async (req, res) => {
-  try {
-    const existingUser = await User.findOne({ _id: req.user.userID }).select('firstname lastname email isSuspended role phone').lean();
-    if (existingUser.isSuspended)
-      return res.status(401).json({ message: "Account suspended" });
-
-    res.status(200).json({
-      firstname: existingUser.name,
-      lastname: existingUser.lastname,
-      email: existingUser.email,
-      role: existingUser.role,
-      phone: existingUser.phone,
-    });
-  } catch (err) {
-    res.status(404).json({ message: "user not found" });
-  }
-};
-
-/**
- *Generates new access token when older ones expire. with the use of refresh tokens
- */
-const getNewAccessToken = async (req, res) => {
-  try {
-    const refreshToken = req.cookies.refresh_token;
-    if (!refreshToken) {
-      return res
-        .status(401)
-        .json({ message: "Refresh Token Not Found", code: 1 });
-    }
-    try {
-      const decodedRefreshToken = jwt.verify(
-        refreshToken,
-        process.env.REFRESH_TOKEN_SECRET,
-      );
-      const userRefreshTokens = await RefreshToken.find({
-        userID: decodedRefreshToken.userID,
-      });
-      let matchFound = false;
-      for (const entry of userRefreshTokens) {
-        const match = await bcrypt.compare(refreshToken, entry.refreshToken);
-        if (match) {
-          matchFound = true;
-          break;
-        }
-      }
-      if (!matchFound) return res.sendStatus(403); // invalid or revoked token
-      const accessToken = jwt.sign(
-        { userID: decodedRefreshToken.userID },
-        process.env.ACCESS_TOKEN_SECRET,
-        { expiresIn: "10w" },
-      ); //change this
-      res.status(200).json({
-        accessToken: accessToken,
-      });
-    } catch (err) {
-      return res
-        .status(401)
-        .json({ message: "Invalid Refresh Token", code: 2 });
-    }
-  } catch (err) {
-    return res.status(500).json({ message: err.message });
-  }
-};
 
 /**
  * Utility to change user details
+ * Todo Change email
  */
 const changeUserDetails = async (req, res) => {
   try {
-    const existingUser = await User.findOne({ _id: req.user.userID });
+    const existingUser = await User.findOne({ _id: req.session.userID });
     if (req.body.name) existingUser.name = req.body.name;
     if (req.body.phone) existingUser.phone = req.body.phone;
 
@@ -339,42 +268,40 @@ const changeUserDetails = async (req, res) => {
   }
 };
 
-//not completed
-//logout from current device
-//blacklists current access token and removes the current refresh token
-const logout = async (req, res) => {
-  try {
-    const { userID, accessToken } = req.user;
-    const { refreshToken } = req.body;
-    const userRefreshTokens = await RefreshToken.find({ userID });
 
-    //
-    let matchFound = false;
-    for (const entry of userRefreshTokens) {
-      const match = await bcrypt.compare(refreshToken, entry.refreshToken);
-      if (match) {
-        await RefreshToken.findByIdAndDelete(entry._id);
-        matchFound = true;
-        break;
-      }
-    }
-    //TODO: Blacklist current accessToken
-
-    return res.status(200).json({ message: "Logged Out" });
-  } catch (err) {
-    return res.status(500).json({ message: err.message });
+const logoutUser = async (req, res) => {
+  // 1. Check if a session exists
+  if (!req.session) {
+    return res.status(200).json({ message: "Already logged out" });
   }
+
+  // 2. Destroy the session in the Store (MongoDB)
+  req.session.destroy((err) => {
+    if (err) {
+      return res.status(500).json({ message: "Could not log out, please try again." });
+    }
+
+    // 3. Clear the cookie from the browser
+    // The name must match the 'name' in your session config (default is 'connect.sid')
+    res.clearCookie('connect.sid', {
+      path: '/', 
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: 'lax'
+    });
+
+    return res.status(200).json({ message: "Logout successful" });
+  });
 };
 
 export {
   loginUser,
   registerUser,
-  getNewAccessToken,
   logout,
   getEmailVerificationLink,
   verifyRecivedLink,
-  verifyAccessToken,
   changeUserDetails,
   requestResetPasswordLink,
   changePassword,
+  logoutUser
 };
