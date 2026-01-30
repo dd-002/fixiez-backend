@@ -1,7 +1,6 @@
 import User from "../models/user.js";
 import Token from "../models/verificationEmailTokenSchema.js";
 import Token2 from "../models/passwordResetSchema.js";
-import bcrypt from "bcrypt";
 import sendVerificationLink from "../utils/sendVerificationLink.js";
 import generateVerificationLink from "../utils/generateVerificationLink.js";
 import sendPasswordResetLink from "../utils/sendPasswordResetLink.js";
@@ -77,56 +76,52 @@ const registerUser = async (req, res) => {
  * A refresh token is sent using a http cookie and access token is sent in body along with other info
  *
  */
-const loginUser = async (req, res) => {
+/**
+ * User login function utilizing Passport.js
+ */
+const loginUser = (req, res, next) => {
   const { email, password } = req.body;
-  try {
-    // 1. Find user by email
-    const user = await User.findOne({ email }).lean();
 
+  // 1. Passport Custom Callback
+  passport.authenticate('local', (err, user, info) => {
+    if (err) return next(err);
+
+    // 2. Check if user was found and password matched (Handled by Strategy)
     if (!user) {
-      return res
-        .status(401)
-        .json({ message: "Invalid credentials", frontendCode: 1 });
-    } else {
-      if (!user.isEmailVerified)
-        return res.status(403).json({
-          message: `Verify You Account Using The Link Sent To ${email}`,
-        });
+      return res.status(401).json({ 
+        message: info.message || "Invalid credentials", 
+        frontendCode: info.frontendCode || 1 
+      });
     }
 
-    //checking if account is suspended by admin, or disabled by cron job
-    if (user.isSuspended)
-      return res
-        .status(401)
-        .json({ message: "User Account is diabled", frontendCode: 3 });
-
-    // 2. Compare password
-    const isMatch = await bcrypt.compare(password, user.password);
-
-    if (!isMatch) {
-      return res
-        .status(401)
-        .json({ message: "Invalid credentials", frontendCode: 2 });
+    // 3. Custom Business Logic (Verification & Suspension)
+    if (!user.isEmailVerified) {
+      return res.status(403).json({
+        message: `Verify Your Account Using The Link Sent To ${user.email}`,
+      });
     }
 
-    //To prevent session fixation attack
-    req.session.regenerate((err) => {
-      if (err) {
-        return res.status(500).json({ message: "Could not initialize session" });
-      }
+    if (user.isSuspended) {
+      return res.status(401).json({ 
+        message: "User Account is disabled", 
+        frontendCode: 3 
+      });
+    }
 
-      req.session.userId = user._id;
-      req.session.role = user.role;
+    // 4. Establish Session via Passport
+    // req.logIn triggers serializeUser
+    req.logIn(user, (err) => {
+      if (err) return next(err);
 
-      // Optional: Force save to ensure session is stored before sending response
-      req.session.save((err) => {
-        if (err) {
-          return res.status(500).json({
-            message: "Some Error Occured"
-          })
-        };
+      // Prevent Session Fixation: Regenerate session after login
+      const tempUser = req.user; 
+      req.session.regenerate((err) => {
+        if (err) return next(err);
+        
+        // Re-bind user to the new session
+        req.session.passport = { user: tempUser._id }; 
 
-        res.status(200).json({
+        return res.status(200).json({
           message: "Login successful",
           user: {
             firstname: user.firstname,
@@ -137,12 +132,7 @@ const loginUser = async (req, res) => {
         });
       });
     });
-
-  } catch (err) {
-    return res.status(500).json({
-      message: err.message,
-    });
-  }
+  })(req, res, next);
 };
 
 /**
@@ -277,20 +267,26 @@ const changeUserDetails = async (req, res) => {
 };
 
 
-const logoutUser = async (req, res) => {
-  // 1. Check if a session exists
-  if (!req.session) {
-    return res.status(200).json({ message: "Already logged out" });
-  }
-
-  // 2. Destroy the session in the Store (MongoDB)
-  req.session.destroy((err) => {
-    if (err) {
-      return res.status(500).json({ message: "Could not log out, please try again." });
+/**
+ * Handles Passport cleanup, Session destruction, and Cookie clearance
+ */
+const logoutUser = async (req, res, next) => {
+  try {
+    // 1. Promisify req.logout (Passport)
+    await new Promise((resolve, reject) => {
+      req.logout((err) => {
+        if (err) return reject(err);
+        resolve();
+      });
+    });
+    if (req.session) {
+      await new Promise((resolve, reject) => {
+        req.session.destroy((err) => {
+          if (err) return reject(err);
+          resolve();
+        });
+      });
     }
-
-    // 3. Clear the cookie from the browser
-    // The name must match the 'name' in your session config (default is 'connect.sid')
     res.clearCookie('connect.sid', {
       path: '/',
       httpOnly: true,
@@ -299,7 +295,11 @@ const logoutUser = async (req, res) => {
     });
 
     return res.status(200).json({ message: "Logout successful" });
-  });
+
+  } catch (err) {
+    // Passes any errors to your global error handler
+    next(err);
+  }
 };
 
 export {
