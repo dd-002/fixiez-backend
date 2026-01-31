@@ -13,7 +13,7 @@ import generatePasswordLink from "../utils/generateResetPasswordLink.js";
  *
  */
 const registerUser = async (req, res) => {
-  const { name, email, password, referralCode } = req.body;
+  const { firstname, lastname, email, password } = req.body;
   try {
     // Check if the user already exists
     const existingUser = await User.findOne({ email }).select('_id isEmailVerified firstname').lean();
