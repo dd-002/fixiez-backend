@@ -1,7 +1,6 @@
 import express from "express";
 import connectDB from "./src/configs/db.js"; //connects to database
 import routes from "./src/routes/index.js"; //connects to routes
-import dotenv from "dotenv";
 import passport from "passport"; 
 import configurePassport from './src/configs/passport.js'; // 1. Import your function
 import { validateSession } from "./src/middlewares/sessionGuard.js";
@@ -9,7 +8,7 @@ import session from "express-session";
 import MongoStore from "connect-mongo";
 
 const app = express();
-dotenv.config()
+
 
 const port = process.env.PORT || 8000;
 
