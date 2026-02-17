@@ -188,7 +188,9 @@ const requestResetPasswordLink = async (req, res) => {
     if (existingUser) {
       await ResetPasswordToken.deleteMany({ userId: existingUser._id });
       const resetUrl = await generateResetPasswordLink(existingUser._id);
-      sendPasswordResetLink(resetUrl, existingUser.email, existingUser.firstname);
+      const err = await sendPasswordResetLink(resetUrl, existingUser.email, existingUser.firstname)
+      if(err == 0)
+        return res.status(500).json({message : "Some error occured"})
       return res.status(200).json({
         message: "Password Reset Email Sent To Mail",
       });
@@ -214,7 +216,9 @@ const verifyRecivedLink = async (req, res) => {
     const token = await VerificationEmailToken.findOne({ token: paramsToken });
     if (token) {
       const existingUser = await User.findByIdAndUpdate(token.userId,{isEmailVerified:true})
-      await VerificationEmailToken.deleteMany({ userId: token.userId });
+      const err = await VerificationEmailToken.deleteMany({ userId: token.userId });
+       if(err == 0)
+        return res.status(500).json({message : "Some error occured"})
       return res.status(200).json({
         message : "Account Verified. Proceed to login"
       });
