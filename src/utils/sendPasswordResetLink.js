@@ -1,18 +1,20 @@
+
+
 import nodemailer from "nodemailer"
 const transporter = nodemailer.createTransport({
-  host: "smtp.hostinger.com",
-  port: 465,
-  secure: true,
+  host: process.env.SMTP_SERVER,
+  port: process.env.PORT_TLS,
+  secure: false,
   auth: {
-    user: "noreply@fixiez.com",
-    pass: "1234@Dipayan"
+    user: process.env.MAIL_USERNAME,
+    pass: process.env.MAIL_PASSWORD
   },
 })
 
 
 export default async function sendPasswordResetLink(resetPasswordLink, email, name) {
   try {
-    console.log("Dipayan Das")
+    console.log(process.env.SMTP_SERVER)
     const info = await transporter.sendMail({
       from: '"Fixiez Password Reset" <noreply@fixiez.com>', // sender address
       to: email, // list of receivers
@@ -72,7 +74,8 @@ export default async function sendPasswordResetLink(resetPasswordLink, email, na
     });
   }
   catch (err) {
-    console.log(err)
+    console.error(err)
+    return 0
   }
 }
 

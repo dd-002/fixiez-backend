@@ -1,11 +1,11 @@
 import nodemailer from "nodemailer"
 const transporter = nodemailer.createTransport({
-  host: "smtp.hostinger.com",
-  port: 465,
-  secure: true,
+  host: process.env.SMTP_SERVER,
+  port: 587,
+  secure: false,
   auth: {
-    user: "noreply@fixiez.com",
-    pass: "1234@Dipayan"
+    user: process.env.MAIL_USERNAME,
+    pass: process.env.MAIL_PASSWORD
   },
 })
 
@@ -72,7 +72,7 @@ export default async function sendVerificationLink(verificationUrl, email, name)
     });
   }
   catch (err) {
-    console.log(err)
+    return 0;
   }
 }
 
