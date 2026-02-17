@@ -1,10 +1,12 @@
-import User from "../models/user.js";
-import Token from "../models/verificationEmailTokenSchema.js";
-import Token2 from "../models/passwordResetSchema.js";
+import passport from "passport";
+
+import User from "../models/users.js";
+import VerificationEmailToken from "../models/verificationEmailTokenSchema.js";
+import ResetPasswordToken from "../models/passwordResetSchema.js";
 import sendVerificationLink from "../utils/sendVerificationLink.js";
 import generateVerificationLink from "../utils/generateVerificationLink.js";
 import sendPasswordResetLink from "../utils/sendPasswordResetLink.js";
-import generatePasswordLink from "../utils/generateResetPasswordLink.js";
+import generateResetPasswordLink from "../utils/generateResetPasswordLink.js";
 
 /**
  * Registers The User with iitb email address
@@ -14,6 +16,7 @@ import generatePasswordLink from "../utils/generateResetPasswordLink.js";
  */
 const registerUser = async (req, res) => {
   const { firstname, lastname, email, password } = req.body;
+
   try {
     // Check if the user already exists
     const existingUser = await User.findOne({ email }).select('_id isEmailVerified firstname').lean();
@@ -49,20 +52,27 @@ const registerUser = async (req, res) => {
     });
 
     // Save the user to the database
-    await newUser.save();
+    try {
+      await newUser.save();
+    }
+    catch (err) {
+      console.log(err)
+      return res.status(500).json({ message: "DD" })
+    }
+
     const verificationLink = await generateVerificationLink(newUser._id);
-    sendVerificationLink(verificationLink, newUser.email, newUser.name);
-    res.status(201).json({
+    sendVerificationLink(verificationLink, newUser.email, newUser.firstname);
+    return res.status(201).json({
       message: "User registered successfully",
       user: {
-        name: newUser.name,
+        firstname: newUser.firstname,
+        lastname: newUser.lastname,
         email: newUser.email,
-        phone: newUser.phone,
       },
     });
   } catch (err) {
     return res.status(500).json({
-      message: err.message,
+      message: "Some error occured in registration",
     });
   }
 };
@@ -80,7 +90,6 @@ const registerUser = async (req, res) => {
  * User login function utilizing Passport.js
  */
 const loginUser = (req, res, next) => {
-  const { email, password } = req.body;
 
   // 1. Passport Custom Callback
   passport.authenticate('local', (err, user, info) => {
@@ -88,9 +97,9 @@ const loginUser = (req, res, next) => {
 
     // 2. Check if user was found and password matched (Handled by Strategy)
     if (!user) {
-      return res.status(401).json({ 
-        message: info.message || "Invalid credentials", 
-        frontendCode: info.frontendCode || 1 
+      return res.status(401).json({
+        message: info.message || "Invalid credentials",
+        frontendCode: info.frontendCode || 1
       });
     }
 
@@ -102,9 +111,9 @@ const loginUser = (req, res, next) => {
     }
 
     if (user.isSuspended) {
-      return res.status(401).json({ 
-        message: "User Account is disabled", 
-        frontendCode: 3 
+      return res.status(401).json({
+        message: "User Account is disabled",
+        frontendCode: 3
       });
     }
 
@@ -114,12 +123,12 @@ const loginUser = (req, res, next) => {
       if (err) return next(err);
 
       // Prevent Session Fixation: Regenerate session after login
-      const tempUser = req.user; 
+      const tempUser = req.user;
       req.session.regenerate((err) => {
         if (err) return next(err);
-        
+
         // Re-bind user to the new session
-        req.session.passport = { user: tempUser._id }; 
+        req.session.passport = { user: tempUser._id };
 
         return res.status(200).json({
           message: "Login successful",
@@ -141,7 +150,7 @@ const loginUser = (req, res, next) => {
  */
 const getEmailVerificationLink = async (req, res) => {
   const { email } = req.body;
-  const existingUser = await User.findOne({ email });
+  const existingUser = await User.findOne({ email }).select('isEmailVerified');
   if (existingUser) {
     if (existingUser.isEmailVerified)
       return res.status(409).json({
@@ -149,7 +158,7 @@ const getEmailVerificationLink = async (req, res) => {
         frontendCode: 1,
       });
     else {
-      await Token.deleteMany({ userId: existingUser._id });
+      await VerificationEmailToken.deleteMany({ userId: existingUser._id });
       const verificationUrl = await generateVerificationLink(existingUser._id);
       sendVerificationLink(
         verificationUrl,
@@ -171,14 +180,15 @@ const getEmailVerificationLink = async (req, res) => {
  * Generates a new password reset link
  * Also removes older generated password resetlinks
  */
+
 const requestResetPasswordLink = async (req, res) => {
   try {
     const { email } = req.body;
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      await Token2.deleteMany({ userId: existingUser._id });
-      const resetUrl = await generatePasswordLink(existingUser._id);
-      sendPasswordResetLink(resetUrl, existingUser.email, existingUser.name);
+      await ResetPasswordToken.deleteMany({ userId: existingUser._id });
+      const resetUrl = await generateResetPasswordLink(existingUser._id);
+      sendPasswordResetLink(resetUrl, existingUser.email, existingUser.firstname);
       return res.status(200).json({
         message: "Password Reset Email Sent To Mail",
       });
@@ -187,7 +197,8 @@ const requestResetPasswordLink = async (req, res) => {
         .status(404)
         .json({ message: "No Such Account Exists", frontendCode: 2 });
     }
-  } catch {
+  } catch(err) {
+    console.log(err)
     return res.status(500).json({ message: "Some error occured" });
   }
 };
@@ -199,17 +210,18 @@ const requestResetPasswordLink = async (req, res) => {
  */
 const verifyRecivedLink = async (req, res) => {
   try {
-    const id = req.params.id;
     const paramsToken = req.params.token;
-    const existingUser = await User.findOne({ _id: id });
-    const token = await Token.findOne({ userId: id, token: paramsToken });
+    const token = await VerificationEmailToken.findOne({ token: paramsToken });
     if (token) {
-      existingUser.isEmailVerified = true;
-      await Token.deleteMany({ userId: id });
-      await existingUser.save();
-      res.redirect(process.env.FRONTEND_BASE_URL + "/verified");
+      const existingUser = await User.findByIdAndUpdate(token.userId,{isEmailVerified:true})
+      await VerificationEmailToken.deleteMany({ userId: token.userId });
+      return res.status(200).json({
+        message : "Account Verified. Proceed to login"
+      });
     } else {
-      res.redirect(process.env.FRONTEND_BASE_URL + "/invalidLink");
+      return res.status(404).json({
+        message : "No Such Token Exists"
+      });
     }
   } catch (error) {
     return res.status(500).json({
@@ -219,17 +231,18 @@ const verifyRecivedLink = async (req, res) => {
 };
 
 //Verify Recieved Password Link and change password
+//TODO : Logout users from all devices
 const changePassword = async (req, res) => {
   try {
     const { password } = req.body;
-    const id = req.params.id;
     const paramsToken = req.params.token;
-    const existingUser = await User.findOne({ _id: id });
-    const token = await Token2.findOne({ userId: id, token: paramsToken });
+
+    const token = await ResetPasswordToken.findOne({  token: paramsToken });
     if (token) {
-      await Token2.deleteMany({ userId: existingUser._id });
+          const existingUser = await User.findOne({ _id: token.userId });
+      await ResetPasswordToken.deleteMany({ userId: existingUser._id });
       existingUser.password = password;
-      existingUser.passwordVersion = (existingUser.passwordVersion || 0) + 1;
+      // existingUser.passwordVersion = (existingUser.passwordVersion || 0) + 1;
       await existingUser.save();
 
       res.clearCookie('connect.sid', {
@@ -249,22 +262,24 @@ const changePassword = async (req, res) => {
 };
 
 
+
+
 /**
  * Utility to change user details
  * Todo Change email
  */
-const changeUserDetails = async (req, res) => {
-  try {
-    const existingUser = await User.findOne({ _id: req.session.userID });
-    if (req.body.name) existingUser.name = req.body.name;
-    if (req.body.phone) existingUser.phone = req.body.phone;
+// const changeUserDetails = async (req, res) => {
+//   try {
+//     const existingUser = await User.findOne({ _id: req.session.userID });
+//     if (req.body.name) existingUser.name = req.body.name;
+//     if (req.body.phone) existingUser.phone = req.body.phone;
 
-    await existingUser.save();
-    res.status(200).json({ message: "Info was successfully updated" });
-  } catch (err) {
-    return res.status(500).json({ message: err.message });
-  }
-};
+//     await existingUser.save();
+//     res.status(200).json({ message: "Info was successfully updated" });
+//   } catch (err) {
+//     return res.status(500).json({ message: err.message });
+//   }
+// };
 
 
 /**
@@ -305,10 +320,9 @@ const logoutUser = async (req, res, next) => {
 export {
   loginUser,
   registerUser,
-  logout,
   getEmailVerificationLink,
   verifyRecivedLink,
-  changeUserDetails,
+  // changeUserDetails,
   requestResetPasswordLink,
   changePassword,
   logoutUser

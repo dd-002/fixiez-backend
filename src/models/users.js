@@ -25,7 +25,7 @@ const userSchema = new mongoose.Schema(
     balance: { type: Number, required: true, default: 0 },
     wallet: { type: mongoose.Schema.ObjectId, ref: "Wallet" },
     passwordVersion : { type: mongoose.Schema.ObjectId, ref: "Wallet" },
-    signUp : {type:String, default:"normal"}  //normal gmail
+    signUp : {type:String, default:"normal", required:true}  //normal gmail
   },
   { timestamps: true },
 );
@@ -38,7 +38,6 @@ userSchema.pre("save", async function (next) {
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-    next();
   } catch (err) {
     next(err);
   }
