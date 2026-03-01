@@ -5,8 +5,10 @@ import {
   verifyRecivedLink,
   getEmailVerificationLink,
   requestResetPasswordLink,
-  changePassword
+  changePassword,
+  whoAmI
 } from "../controllers/authController.js";
+import { isAuthenticated, authorize } from "../middlewares/auth.js";
 
 const router = Router();
 
@@ -16,5 +18,8 @@ router.post("/get-verification-email", getEmailVerificationLink)
 router.get("/verify/:token", verifyRecivedLink)
 router.post("/get-reset-password-link", requestResetPasswordLink)
 router.post("/reset-password/:token", changePassword)
+
+//Sends Essential User Information
+router.get("/whoami", isAuthenticated, authorize([100]), whoAmI)
 
 export default router;
