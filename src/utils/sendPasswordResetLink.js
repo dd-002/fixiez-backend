@@ -14,7 +14,6 @@ const transporter = nodemailer.createTransport({
 
 export default async function sendPasswordResetLink(resetPasswordLink, email, name) {
   try {
-    console.log(process.env.SMTP_SERVER)
     const info = await transporter.sendMail({
       from: '"Fixiez Password Reset" <noreply@fixiez.com>', // sender address
       to: email, // list of receivers
