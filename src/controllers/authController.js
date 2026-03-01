@@ -90,12 +90,9 @@ const registerUser = async (req, res) => {
  * User login function utilizing Passport.js
  */
 const loginUser = (req, res, next) => {
-
-  // 1. Passport Custom Callback
   passport.authenticate('local', (err, user, info) => {
     if (err) return next(err);
 
-    // 2. Check if user was found and password matched (Handled by Strategy)
     if (!user) {
       return res.status(401).json({
         message: info.message || "Invalid credentials",
@@ -103,40 +100,31 @@ const loginUser = (req, res, next) => {
       });
     }
 
-    // 3. Custom Business Logic (Verification & Suspension)
-    if (!user.isEmailVerified) {
-      return res.status(403).json({
-        message: `Verify Your Account Using The Link Sent To ${user.email}`,
-      });
-    }
-
-    if (user.isSuspended) {
-      return res.status(401).json({
-        message: "User Account is disabled",
-        frontendCode: 3
-      });
-    }
-
-    // 4. Establish Session via Passport
-    // req.logIn triggers serializeUser
-    req.logIn(user, (err) => {
+    // 1. Regenerate session BEFORE logging in to prevent fixation
+    req.session.regenerate((err) => {
       if (err) return next(err);
 
-      // Prevent Session Fixation: Regenerate session after login
-      const tempUser = req.user;
-      req.session.regenerate((err) => {
-        if (err) return next(err);
+      // 2. Now log the user in. Passport will automatically 
+      // handle serialization and bind the user to the NEW session.
+      req.logIn(user, (loginErr) => {
+        if (loginErr) return next(loginErr);
 
-        // Re-bind user to the new session
-        req.session.passport = { user: tempUser._id };
+        // 3. Custom Business Logic (Verification & Suspension)
+        if (!user.isEmailVerified) {
+          return res.status(403).json({ message: "Verify your email.", frontendCode: 2 });
+        }
+        if (user.isSuspended) {
+          return res.status(403).json({ message: "User is suspended", frontendCode: 3 });
+        }
 
         return res.status(200).json({
           message: "Login successful",
           user: {
             firstname: user.firstname,
-            lastname: user.lastname,
+            lastname : user.lastname,
+            role: user.role,
             email: user.email,
-            role: user.role
+            isEmailVerified : user.isEmailVerified,
           }
         });
       });
@@ -189,8 +177,8 @@ const requestResetPasswordLink = async (req, res) => {
       await ResetPasswordToken.deleteMany({ userId: existingUser._id });
       const resetUrl = await generateResetPasswordLink(existingUser._id);
       const err = await sendPasswordResetLink(resetUrl, existingUser.email, existingUser.firstname)
-      if(err == 0)
-        return res.status(500).json({message : "Some error occured"})
+      if (err == 0)
+        return res.status(500).json({ message: "Some error occured" })
       return res.status(200).json({
         message: "Password Reset Email Sent To Mail",
       });
@@ -199,7 +187,7 @@ const requestResetPasswordLink = async (req, res) => {
         .status(404)
         .json({ message: "No Such Account Exists", frontendCode: 2 });
     }
-  } catch(err) {
+  } catch (err) {
     console.log(err)
     return res.status(500).json({ message: "Some error occured" });
   }
@@ -215,16 +203,16 @@ const verifyRecivedLink = async (req, res) => {
     const paramsToken = req.params.token;
     const token = await VerificationEmailToken.findOne({ token: paramsToken });
     if (token) {
-      const existingUser = await User.findByIdAndUpdate(token.userId,{isEmailVerified:true})
+      const existingUser = await User.findByIdAndUpdate(token.userId, { isEmailVerified: true })
       const err = await VerificationEmailToken.deleteMany({ userId: token.userId });
-       if(err == 0)
-        return res.status(500).json({message : "Some error occured"})
+      if (err == 0)
+        return res.status(500).json({ message: "Some error occured" })
       return res.status(200).json({
-        message : "Account Verified. Proceed to login"
+        message: "Account Verified. Proceed to login"
       });
     } else {
       return res.status(404).json({
-        message : "No Such Token Exists"
+        message: "No Such Token Exists"
       });
     }
   } catch (error) {
@@ -241,9 +229,9 @@ const changePassword = async (req, res) => {
     const { password } = req.body;
     const paramsToken = req.params.token;
 
-    const token = await ResetPasswordToken.findOne({  token: paramsToken });
+    const token = await ResetPasswordToken.findOne({ token: paramsToken });
     if (token) {
-          const existingUser = await User.findOne({ _id: token.userId });
+      const existingUser = await User.findOne({ _id: token.userId });
       await ResetPasswordToken.deleteMany({ userId: existingUser._id });
       existingUser.password = password;
       // existingUser.passwordVersion = (existingUser.passwordVersion || 0) + 1;
@@ -321,6 +309,20 @@ const logoutUser = async (req, res, next) => {
   }
 };
 
+const whoAmI = async (req, res) => {
+  try {
+    return res.status(200).json({
+      authenticated: true,
+      user: req.user // req.user is populated by deserializeUser
+    });
+  }
+  catch (err) {
+    next(err)
+  }
+
+
+}
+
 export {
   loginUser,
   registerUser,
@@ -329,5 +331,6 @@ export {
   // changeUserDetails,
   requestResetPasswordLink,
   changePassword,
-  logoutUser
+  logoutUser,
+  whoAmI
 };
