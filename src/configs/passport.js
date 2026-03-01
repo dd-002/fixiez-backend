@@ -31,11 +31,11 @@ const configurePassport = () => {
   // 3. Deserialize: Fetch User from DB using ID in Session
   passport.deserializeUser(async (user, done) => {
     try {
-      const userFromDb = await User.findById(user._id).select('-password');
+      const userFromDb = await User.findById(user.id).select('-password');
       if (!userFromDb || userFromDb.passwordVersion !== user.passwordVersion) {
       return done(null, false); // This effectively logs the user out
     }
-      done(null, user);
+      done(null, userFromDb);
     } catch (err) {
       done(err);
     }
