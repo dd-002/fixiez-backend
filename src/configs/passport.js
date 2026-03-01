@@ -32,7 +32,7 @@ const configurePassport = () => {
   passport.deserializeUser(async (user, done) => {
     try {
       const userFromDb = await User.findById(user.id).select('-password');
-      if (!userFromDb || userFromDb.passwordVersion !== user.passwordVersion) {
+      if (!userFromDb || userFromDb.passwordVersion !== user.passwordVersion || !userFromDb.isEmailVerified || userFromDb.isSuspended ) {
       return done(null, false); // This effectively logs the user out
     }
       done(null, userFromDb);
