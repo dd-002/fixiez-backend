@@ -6,7 +6,8 @@ import {
   getEmailVerificationLink,
   requestResetPasswordLink,
   changePassword,
-  whoAmI
+  whoAmI,
+  logoutUser
 } from "../controllers/authController.js";
 import { isAuthenticated, authorize } from "../middlewares/auth.js";
 
@@ -18,6 +19,8 @@ router.post("/get-verification-email", getEmailVerificationLink)
 router.get("/verify/:token", verifyRecivedLink)
 router.post("/get-reset-password-link", requestResetPasswordLink)
 router.post("/reset-password/:token", changePassword)
+router.post("/logout", logoutUser)
+
 
 //Sends Essential User Information
 router.get("/whoami", isAuthenticated, authorize([100]), whoAmI)
