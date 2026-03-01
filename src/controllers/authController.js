@@ -138,7 +138,7 @@ const loginUser = (req, res, next) => {
  */
 const getEmailVerificationLink = async (req, res) => {
   const { email } = req.body;
-  const existingUser = await User.findOne({ email }).select('isEmailVerified');
+  const existingUser = await User.findOne({ email }).select('isEmailVerified email firstname');
   if (existingUser) {
     if (existingUser.isEmailVerified)
       return res.status(200).json({

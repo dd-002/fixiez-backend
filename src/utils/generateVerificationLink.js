@@ -12,7 +12,7 @@ export default async function generateVerificationLink(userID) {
       token: crypto.randomBytes(32).toString("hex"),
     }).save();
 
-    const message = `${process.env.BASE_URL}/api/v1/auth/verify/${token.token}`;
+    const message = `${process.env.FRONTEND_URL}/verify-email?token=${token.token}`;
     return message;
   } catch (err) {
     return 0;
