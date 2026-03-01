@@ -141,7 +141,7 @@ const getEmailVerificationLink = async (req, res) => {
   const existingUser = await User.findOne({ email }).select('isEmailVerified');
   if (existingUser) {
     if (existingUser.isEmailVerified)
-      return res.status(409).json({
+      return res.status(200).json({
         message: "User already verified, Login to your account",
         frontendCode: 1,
       });
@@ -154,7 +154,7 @@ const getEmailVerificationLink = async (req, res) => {
         existingUser.firstname,
       );
       return res
-        .status(409)
+        .status(200)
         .json({ message: "Verification Email Sent To Mail", frontendCode: 2 });
     }
   } else {
