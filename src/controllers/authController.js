@@ -278,35 +278,28 @@ const changePassword = async (req, res) => {
  * Handles Passport cleanup, Session destruction, and Cookie clearance
  */
 const logoutUser = async (req, res, next) => {
-  try {
-    // 1. Promisify req.logout (Passport)
-    await new Promise((resolve, reject) => {
-      req.logout((err) => {
-        if (err) return reject(err);
-        resolve();
-      });
-    });
+  req.logout((err) => {
+    if (err) return next(err);
+
+    // Destroy session only if it exists
     if (req.session) {
-      await new Promise((resolve, reject) => {
-        req.session.destroy((err) => {
-          if (err) return reject(err);
-          resolve();
+      req.session.destroy((err) => {
+        if (err) return next(err);
+        
+        // Clear cookie and send response
+        res.clearCookie('connect.sid', {
+          path: '/',
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: 'lax'
         });
+        
+        return res.status(200).json({ message: "Logout successful" });
       });
+    } else {
+      return res.status(200).json({ message: "Already logged out" });
     }
-    res.clearCookie('connect.sid', {
-      path: '/',
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: 'lax'
-    });
-
-    return res.status(200).json({ message: "Logout successful" });
-
-  } catch (err) {
-    // Passes any errors to your global error handler
-    next(err);
-  }
+  });
 };
 
 const whoAmI = async (req, res) => {
