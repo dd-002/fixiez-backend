@@ -6,6 +6,7 @@ import configurePassport from './src/configs/passport.js'; // 1. Import your fun
 import { validateSession } from "./src/middlewares/sessionGuard.js";
 import session from "express-session";
 import MongoStore from "connect-mongo";
+import cors from 'cors'
 
 const app = express();
 
@@ -13,6 +14,12 @@ const app = express();
 const port = process.env.PORT || 8000;
 
 //basic middlewares
+app.use(cors({
+  origin: 'http://localhost:8080', // EXACT URL of your React app
+  credentials: true,               // REQUIRED for sessions/cookies
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
@@ -22,10 +29,11 @@ app.use(session({
   secret: process.env.SESSION_SECRET, // A strong secret key
   resave: false,
   saveUninitialized: false,
-  store: MongoStore.create({ mongoUrl: process.env.MONGO_URI }),
+  store: MongoStore.create({ mongoUrl: process.env.MONGO_URI, collectionName: "Sessions" }),
   cookie: {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
+    sameSite : 'lax',
     maxAge: 4 * 7 * 24 * 60 * 60 * 1000 // 4 weeks
   }
 }));
