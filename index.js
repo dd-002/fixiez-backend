@@ -44,7 +44,7 @@ app.use(passport.session()); //attaches a dynamic property called user to passpo
 // app.use(validateSession); //
 
 //routing
-app.use("/apiV1", routes);
+app.use("/api/v1", routes);
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
