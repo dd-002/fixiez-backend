@@ -39,7 +39,6 @@ const shopSchema = new mongoose.Schema({
     devicesSupported: [String], // ["Smartphone", "Tablet"]
     repairServices: [{
         serviceName: String,
-        price: Number
     }],
     openingHours: String
 });

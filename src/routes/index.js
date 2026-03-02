@@ -5,6 +5,7 @@ import googleApiRoutes from './googleMapsRoutes.js'
 
 //user specific routes
 import shopRoutes from "./user/shopRoutes.js";
+import bookigRoutes from './user/bookingRoutes.js'
 
 // import productAdminRoutes from "./productAdmin.js";
 // import productUserRoutes from "./productUser.js";
@@ -22,6 +23,7 @@ const router = Router();
 router.use("/auth", authRoutes);
 router.use("/shops", shopRoutes);
 router.use("/google-apis", googleApiRoutes)
+router.use("/bookings", bookigRoutes)
 
 // router.use("/productUser", productUserRoutes);
 // router.use("/payments", paymentRoutes);

@@ -1,5 +1,5 @@
-import Booking from '../../models/bookingSchema.js'
-import Shop from '../../models/shops.js'
+import Booking from '../../models/bookingSchema.js';
+import Shop from '../../models/shops.js';
 
 const createBooking = async (req, res) => {
     try {
@@ -10,8 +10,9 @@ const createBooking = async (req, res) => {
             deviceType,
             expectedRepairs,
             additionalNote,
-            slotDate,
-            slotTime
+            slotDate, // e.g., "2026-03-15"
+            slotTime, // e.g., "14:30"
+            initialExpectedPrice // Added to satisfy 'required' schema field
         } = req.body;
 
         // 1. Validate Shop Existence
@@ -20,13 +21,16 @@ const createBooking = async (req, res) => {
             return res.status(404).json({ success: false, message: "Service center not found" });
         }
 
-        // 2. Check Slot Availability (Concurrency Control)
-        // Logic: Limit to 3 bookings per time slot per shop
+        // 2. Construct the Appointment Date
+        // Your schema uses 'appointmentDate' (Date type)
+        const appointmentDate = new Date(`${slotDate}T${slotTime}:00`);
+
+        // 3. Check Slot Availability (Concurrency Control)
+        // We filter by checking if any booking exists within the same hour/slot
         const existingBookings = await Booking.countDocuments({
             shopId,
-            slotDate: new Date(slotDate),
-            slotTime,
-            status: { $ne: 'cancelled' } // Don't count cancelled bookings
+            appointmentDate: appointmentDate,
+            status: { $ne: 'cancelled' }
         });
 
         if (existingBookings >= 3) {
@@ -36,20 +40,17 @@ const createBooking = async (req, res) => {
             });
         }
 
-
-        const appointmentDate = new Date(`${slotDate}T${slotTime}`);
-
         // 4. Create the Booking
         const newBooking = new Booking({
             shopId,
-            userId: req.user._id, // Assumes user ID is available via auth middleware
+            userId: req.user._id, // Assumes auth middleware populates req.user
             brandName,
             modelName,
             deviceType,
-            expectedRepairs,
+            expectedRepairs: Array.isArray(expectedRepairs) ? expectedRepairs : [expectedRepairs],
             additionalNote,
-            appointmentDate,
-            initialExpectedPrice: 0,
+            appointmentDate, // Matches Schema field name
+            initialExpectedPrice: initialExpectedPrice || 0, // Matches Schema field name
             status: 'awaiting confirmation'
         });
 
