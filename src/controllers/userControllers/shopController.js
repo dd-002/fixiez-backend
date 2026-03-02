@@ -74,4 +74,23 @@ const getShops = async (req, res) => {
     }
 };
 
-export { getShops }
+// controllers/shopController.js
+
+const getShopById = async (req, res) => {
+    try {
+        const shop = await Shop.findById(req.params.id);
+        console.log('felo')
+        if (!shop) {
+            return res.status(404).json({ success: false, message: "Shop not found" });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: shop
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Invalid Shop ID" });
+    }
+};
+
+export { getShops , getShopById}
