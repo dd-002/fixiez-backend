@@ -1,6 +1,7 @@
 //Exports all the routes
 import { Router } from "express";
 import authRoutes from "./authRoutes.js"; //for authorisation
+import googleApiRoutes from './googleMapsRoutes.js'
 
 //user specific routes
 import shopRoutes from "./user/shopRoutes.js";
@@ -19,7 +20,8 @@ import shopRoutes from "./user/shopRoutes.js";
 const router = Router();
 
 router.use("/auth", authRoutes);
-router.use("/shops", shopRoutes)
+router.use("/shops", shopRoutes);
+router.use("/google-apis", googleApiRoutes)
 
 // router.use("/productUser", productUserRoutes);
 // router.use("/payments", paymentRoutes);
