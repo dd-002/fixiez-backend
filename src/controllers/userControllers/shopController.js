@@ -9,7 +9,7 @@ const getShops = async (req, res) => {
             devices = [], // Array of strings: ["Smartphone", "Tablet"]
             page = 1, 
             limit = 4, 
-            maxDistance = 10000 // Default 10km for Mumbai traffic context
+            maxDistance = 3000 // Default 10km for Mumbai traffic context
         } = req.body;
 
         const skip = (page - 1) * limit;

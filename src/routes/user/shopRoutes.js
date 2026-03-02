@@ -5,7 +5,7 @@ import { isAuthenticated, authorize } from "../../middlewares/auth.js";
 
 const router = Router();
 
-router.get("/all-shops",getShops)
+router.post("/all-shops",getShops)
 
 
 export default router;
