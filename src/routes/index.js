@@ -1,6 +1,10 @@
 //Exports all the routes
 import { Router } from "express";
 import authRoutes from "./authRoutes.js"; //for authorisation
+
+//user specific routes
+import shopRoutes from "./user/shopRoutes.js";
+
 // import productAdminRoutes from "./productAdmin.js";
 // import productUserRoutes from "./productUser.js";
 // import paymentRoutes from "./paymentRoutes.js";
@@ -15,6 +19,8 @@ import authRoutes from "./authRoutes.js"; //for authorisation
 const router = Router();
 
 router.use("/auth", authRoutes);
+router.use("/shops", shopRoutes)
+
 // router.use("/productUser", productUserRoutes);
 // router.use("/payments", paymentRoutes);
 // router.use("/order", orderRoutes);

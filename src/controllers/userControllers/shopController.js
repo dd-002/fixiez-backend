@@ -1,83 +1,77 @@
-import Shop from '../../models/shops.js'
+import Shop from '../../models/shops.js';
 
 const getShops = async (req, res) => {
     try {
+        // Destructure from req.body instead of req.query
         const { 
             lng, 
             lat, 
-            devices, 
+            devices = [], // Array of strings: ["Smartphone", "Tablet"]
             page = 1, 
-            limit = 10, 
-            maxDistance = 5000 // Default to 5km
+            limit = 4, 
+            maxDistance = 10000 // Default 10km for Mumbai traffic context
         } = req.body;
 
-        const skip = (parseInt(page) - 1) * parseInt(limit);
-        const queryPipeline = [];
+        const skip = (page - 1) * limit;
+        const pipeline = [];
 
-        // 1. Geospatial Filter (MUST be the first stage in the pipeline)
+        // 1. Geospatial Stage: Find shops near coordinates
+        // This stage MUST be first for the 2dsphere index to work
         if (lng && lat) {
-            queryPipeline.push({
+            pipeline.push({
                 $geoNear: {
                     near: {
                         type: "Point",
                         coordinates: [parseFloat(lng), parseFloat(lat)]
                     },
-                    distanceField: "distance", // Adds 'distance' (in meters) to each document
+                    distanceField: "distance", 
                     maxDistance: parseInt(maxDistance),
                     spherical: true
                 }
             });
         }
 
-        // 2. Devices Supported Filter
-        const matchStage = {};
-        if (devices) {
-            // Expecting 'devices' as a comma-separated string: "Smartphone,Tablet"
-            const deviceArray = devices.split(',');
-            matchStage.devicesSupported = { $in: deviceArray };
+        // 2. Filtering Stage: Match devices
+        const matchConditions = {};
+        if (devices.length > 0) {
+            // Finds shops that support ANY of the selected devices
+            matchConditions.devicesSupported = { $in: devices };
         }
 
-        if (Object.keys(matchStage).length > 0) {
-            queryPipeline.push({ $match: matchStage });
+        if (Object.keys(matchConditions).length > 0) {
+            pipeline.push({ $match: matchConditions });
         }
 
-        // 3. Faceted Navigation for Pagination
-        // This allows us to get both the data and the total count in one query
-        queryPipeline.push({
+        // 3. Pagination & Metadata Stage
+        pipeline.push({
             $facet: {
                 metadata: [{ $count: "total" }],
                 data: [
+                    { $sort: { rating: -1, distance: 1 } }, // Best rated and closest first
                     { $skip: skip },
-                    { $limit: parseInt(limit) },
-                    { $sort: { rating: -1 } } // Secondary sort by rating if needed
+                    { $limit: limit }
                 ]
             }
         });
 
-        const result = await Shop.aggregate(queryPipeline);
+        const [result] = await Shop.aggregate(pipeline);
 
-        const shops = result[0].data;
-        const total = result[0].metadata[0]?.total || 0;
+        const shops = result.data;
+        const total = result.metadata[0]?.total || 0;
 
         res.status(200).json({
             success: true,
-            count: shops.length,
-            total,
-            currentPage: parseInt(page),
-            totalPages: Math.ceil(total / limit),
+            pagination: {
+                total,
+                page,
+                pages: Math.ceil(total / limit),
+            },
             data: shops
         });
 
     } catch (error) {
-        console.error("Error fetching shops:", error);
-        res.status(500).json({
-            success: false,
-            message: "Server Error",
-            error: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
-export {
-    getShops
-}
+export { getShops }
